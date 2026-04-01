@@ -9,7 +9,8 @@ const ui = {
   btnDescargarTodo: document.getElementById("btnDescargarTodo"),
   btnAbrirTodo: document.getElementById("btnAbrirTodo"),
   status: document.getElementById("status"),
-  rows: document.getElementById("rows")
+  rows: document.getElementById("rows"),
+  otherRows: document.getElementById("otherRows")
 };
 
 let generatedFiles = [];
@@ -802,6 +803,75 @@ function drawRows(items) {
   });
 }
 
+function getNonParameterFiles(allFiles, parameterPairs) {
+  const parameterPaths = new Set(parameterPairs.flatMap((pair) => pair.files.map((file) => file.path)));
+  return allFiles.filter((file) => !parameterPaths.has(file.path));
+}
+
+function openFileInBrowser(file) {
+  if (!file) return;
+
+  const html = `<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>${escapeHtml(file.path)}</title>
+  <style>
+    body { font-family: Consolas, monospace; margin: 16px; background: #f7f7f7; }
+    h1, h2 { font-family: Arial, sans-serif; }
+    pre { background: #fff; padding: 12px; border: 1px solid #ddd; border-radius: 8px; overflow: auto; }
+  </style>
+</head>
+<body>
+  <h1>SQL Generado</h1>
+  <h2>${escapeHtml(file.path)}</h2>
+  <pre>${escapeHtml(file.content)}</pre>
+</body>
+</html>`;
+
+  const win = window.open("", "_blank");
+  if (!win) {
+    setStatus("El navegador bloqueó la ventana emergente. Habilita popups para esta página.");
+    return;
+  }
+  win.document.open();
+  win.document.write(html);
+  win.document.close();
+}
+
+function drawOtherFiles(items) {
+  ui.otherRows.innerHTML = "";
+  if (!items.length) return;
+
+  const html = items
+    .map((file, index) => `<tr>
+      <td>${index + 1}</td>
+      <td>${escapeHtml(file.path)}</td>
+      <td>
+        <button type="button" class="btn btn-mini btn-primary other-download" data-index="${index}">Descargar</button>
+        <button type="button" class="btn btn-mini other-open" data-index="${index}">Abrir</button>
+      </td>
+    </tr>`)
+    .join("");
+
+  ui.otherRows.innerHTML = html;
+
+  ui.otherRows.querySelectorAll(".other-download").forEach((button) => {
+    button.addEventListener("click", () => {
+      const idx = Number(button.dataset.index);
+      const file = items[idx];
+      downloadTextFile(file.path, file.content);
+    });
+  });
+
+  ui.otherRows.querySelectorAll(".other-open").forEach((button) => {
+    button.addEventListener("click", () => {
+      const idx = Number(button.dataset.index);
+      openFileInBrowser(items[idx]);
+    });
+  });
+}
+
 function sortPairs(pairs, mode) {
   const cloned = [...pairs];
   if (mode === "sec_ejecutable_parametro") {
@@ -852,6 +922,7 @@ function updateButtonsState(enabled) {
 }
 
 function refreshStatus(secEjecutableTarget) {
+  const otherFiles = getNonParameterFiles(generatedFiles, generatedPairs);
   const fileList = generatedFiles.map((f) => `- ${f.path}`).join("\n");
   setStatus(
     [
@@ -862,6 +933,7 @@ function refreshStatus(secEjecutableTarget) {
       `Ejecutable detectado: ${generatedContext?.executableRow?.EJECUTABLE || "N/A"}`,
       `Menu detectado: ${generatedContext?.menuChain?.length || 0}`,
       `Parametros encontrados: ${generatedPairs.length}`,
+      `Otros archivos detectados: ${otherFiles.length}`,
       `Archivos generados: ${generatedFiles.length}`,
       "",
       fileList
@@ -977,6 +1049,7 @@ async function processWorkbook() {
   generatedContext = null;
   updateButtonsState(false);
   ui.rows.innerHTML = "";
+  ui.otherRows.innerHTML = "";
 
   try {
     setStatus("Leyendo archivo Excel...");
@@ -1041,8 +1114,10 @@ async function processWorkbook() {
     const outputs = buildWorkbookOutputs(generatedContext, roleName);
     generatedPairs = outputs.parameterPairs;
     generatedFiles = outputs.files;
+    const otherFiles = getNonParameterFiles(generatedFiles, generatedPairs);
 
     drawRows(generatedPairs);
+    drawOtherFiles(otherFiles);
     updateButtonsState(true);
     refreshStatus(secEjecutableTarget);
   } catch (error) {
@@ -1079,6 +1154,8 @@ ui.sortBy.addEventListener("change", () => {
   const outputs = buildWorkbookOutputs(generatedContext, cleanValue(ui.rolPrivilegios.value) || "ICEBERG_ZK");
   generatedPairs = outputs.parameterPairs;
   generatedFiles = outputs.files;
+  const otherFiles = getNonParameterFiles(generatedFiles, generatedPairs);
   drawRows(generatedPairs);
+  drawOtherFiles(otherFiles);
   refreshStatus(cleanValue(ui.secEjecutable.value));
 });
