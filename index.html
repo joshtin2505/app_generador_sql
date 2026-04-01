@@ -1,14 +1,18 @@
 <!doctype html>
 <html lang="es">
+
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Generador SQL de Migraciones</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap"
+    rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
 </head>
+
 <body>
   <div class="bg-grid" aria-hidden="true"></div>
   <main class="page">
@@ -21,7 +25,12 @@
         <strong>MST_MENU</strong>, <strong>MST_OBJETO</strong> y <strong>MSP_PRIVILEGIOS_ROL</strong>.
       </p>
     </header>
-
+    <div class="actions">
+      <button id="btnProcesar" class="btn btn-primary" type="button">Procesar</button>
+      <button id="btnDescargar" class="btn btn-accent" type="button" disabled>Descargar ZIP</button>
+      <button id="btnDescargarTodo" class="btn" type="button" disabled>Descargar todo sin comprimir</button>
+      <button id="btnAbrirTodo" class="btn" type="button" disabled>Abrir todo en navegador</button>
+    </div>
     <section class="panel controls">
       <label class="field file-field">
         <span>Archivo Excel (.xlsx)</span>
@@ -38,6 +47,14 @@
         <input id="rolPrivilegios" type="text" value="ICEBERG_ZK" />
       </label>
 
+      <label class="field checkbox-field">
+        <span>Opciones de menú</span>
+        <span class="checkbox-row">
+          <input id="includeMenuPredecessors" type="checkbox" />
+          <span>Incluir menús predecesores</span>
+        </span>
+      </label>
+
       <label class="field">
         <span>Ordenar por</span>
         <select id="sortBy">
@@ -47,12 +64,7 @@
         </select>
       </label>
 
-      <div class="actions">
-        <button id="btnProcesar" class="btn btn-primary" type="button">Procesar</button>
-        <button id="btnDescargar" class="btn btn-accent" type="button" disabled>Descargar ZIP</button>
-        <button id="btnDescargarTodo" class="btn" type="button" disabled>Descargar todo sin comprimir</button>
-        <button id="btnAbrirTodo" class="btn" type="button" disabled>Abrir todo en navegador</button>
-      </div>
+
       <p class="hint">
         El libro debe incluir las hojas <strong>Ejecutable</strong>, <strong>Ejecutable_Parametro</strong>,
         <strong>Parametro</strong>, <strong>Menu</strong>, <strong>MST_OBJETO</strong> y <strong>Control IDs</strong>.
@@ -91,4 +103,5 @@
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
   <script src="app.js"></script>
 </body>
+
 </html>

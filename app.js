@@ -2,6 +2,7 @@ const ui = {
   excelFile: document.getElementById("excelFile"),
   secEjecutable: document.getElementById("secEjecutable"),
   rolPrivilegios: document.getElementById("rolPrivilegios"),
+  includeMenuPredecessors: document.getElementById("includeMenuPredecessors"),
   sortBy: document.getElementById("sortBy"),
   btnProcesar: document.getElementById("btnProcesar"),
   btnDescargar: document.getElementById("btnDescargar"),
@@ -271,7 +272,21 @@ function findBestMenuRows(menuRows, executableRow, objectRow) {
   return ranked.filter((item) => item.score === bestScore).map((item) => item.row);
 }
 
-function buildMenuLineage(menuRows, seedRows) {
+function buildMenuLineage(menuRows, seedRows, includePredecessors) {
+  if (!includePredecessors) {
+    const unique = [];
+    const seen = new Set();
+
+    seedRows.forEach((row) => {
+      const menuId = cleanValue(row?.target?.menu);
+      if (!menuId || seen.has(menuId)) return;
+      seen.add(menuId);
+      unique.push(row);
+    });
+
+    return unique;
+  }
+
   const byTargetMenu = new Map(menuRows.map((row) => [cleanValue(row.target.menu), row]));
   const ordered = [];
   const visited = new Set();
@@ -843,6 +858,7 @@ function refreshStatus(secEjecutableTarget) {
       `Archivo: ${lastWorkbookName}`,
       `SEC_EJECUTABLE: ${secEjecutableTarget}`,
       `Rol privilegios: ${cleanValue(ui.rolPrivilegios.value) || "ICEBERG_ZK"}`,
+      `Incluir menús predecesores: ${ui.includeMenuPredecessors?.checked ? "SI" : "NO"}`,
       `Ejecutable detectado: ${generatedContext?.executableRow?.EJECUTABLE || "N/A"}`,
       `Menu detectado: ${generatedContext?.menuChain?.length || 0}`,
       `Parametros encontrados: ${generatedPairs.length}`,
@@ -944,6 +960,7 @@ async function processWorkbook() {
   const file = ui.excelFile.files[0];
   const secEjecutableTarget = cleanValue(ui.secEjecutable.value);
   const roleName = cleanValue(ui.rolPrivilegios.value) || "ICEBERG_ZK";
+  const includeMenuPredecessors = Boolean(ui.includeMenuPredecessors?.checked);
 
   if (!file) {
     setStatus("Debes seleccionar un archivo Excel.");
@@ -995,7 +1012,7 @@ async function processWorkbook() {
     const componentRow = findComponentRow(componentRows, executableRow.SEC_COMPONENTE);
     const preliminaryObjectRow = findObjectRow(objectRows, executableRow, []);
     const menuSeedRows = findBestMenuRows(menuRows, executableRow, preliminaryObjectRow);
-    const menuChain = buildMenuLineage(menuRows, menuSeedRows);
+    const menuChain = buildMenuLineage(menuRows, menuSeedRows, includeMenuPredecessors);
     const objectRow = findObjectRow(objectRows, executableRow, menuChain) || preliminaryObjectRow;
 
     const filtered = ejecutableRows
@@ -1017,6 +1034,7 @@ async function processWorkbook() {
       componentRow,
       objectRow,
       menuChain,
+      includeMenuPredecessors,
       parameterPairs: sortedParameterPairs
     };
 
@@ -1056,9 +1074,11 @@ ui.btnDescargarTodo.addEventListener("click", downloadAllUncompressed);
 ui.btnAbrirTodo.addEventListener("click", openAllInBrowser);
 
 ui.sortBy.addEventListener("change", () => {
-  if (!generatedPairs.length) return;
-  generatedPairs = sortPairs(generatedPairs, cleanValue(ui.sortBy.value).toLowerCase());
-  generatedFiles = flattenFiles(generatedPairs);
+  if (!generatedContext) return;
+  generatedContext.parameterPairs = sortPairs(generatedContext.parameterPairs, cleanValue(ui.sortBy.value).toLowerCase());
+  const outputs = buildWorkbookOutputs(generatedContext, cleanValue(ui.rolPrivilegios.value) || "ICEBERG_ZK");
+  generatedPairs = outputs.parameterPairs;
+  generatedFiles = outputs.files;
   drawRows(generatedPairs);
   refreshStatus(cleanValue(ui.secEjecutable.value));
 });
