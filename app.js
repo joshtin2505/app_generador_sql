@@ -923,7 +923,7 @@ function updateButtonsState(enabled) {
 
 function refreshStatus(secEjecutableTarget) {
   const otherFiles = getNonParameterFiles(generatedFiles, generatedPairs);
-  const fileList = generatedFiles.map((f) => `- ${f.path}`).join("\n");
+  const fileList = generatedFiles.map((f,i) => `${i + 1}. ${f.path}`).join("\n");
   setStatus(
     [
       `Archivo: ${lastWorkbookName}`,
