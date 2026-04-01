@@ -1,0 +1,254 @@
+* {
+    padding: 0;
+    margin: 0;
+    box-sizing: border-box;
+}
+
+:root {
+    --bg-a: #f7f5ef;
+    --bg-b: #e8efe6;
+    --ink: #1b2a2f;
+    --ink-soft: #2f4b55;
+    --panel: rgba(255, 255, 255, 0.86);
+    --line: rgba(27, 42, 47, 0.15);
+    --brand: #0f766e;
+    --brand-strong: #0b5f59;
+    --accent: #b45309;
+    --accent-strong: #8f4006;
+    --shadow: 0 10px 35px rgba(15, 57, 62, 0.12);
+}
+
+
+body {
+    min-height: 100vh;
+    font-family: "Space Grotesk", sans-serif;
+    color: var(--ink);
+    background: radial-gradient(1200px 500px at -10% -20%, #dff7ef 0%, transparent 55%),
+        radial-gradient(1000px 420px at 120% -10%, #fde4cc 0%, transparent 60%),
+        linear-gradient(160deg, var(--bg-a), var(--bg-b));
+}
+
+.bg-grid {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background-image: linear-gradient(rgba(19, 52, 60, 0.045) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(19, 52, 60, 0.045) 1px, transparent 1px);
+    background-size: 28px 28px;
+    mask-image: radial-gradient(circle at center, #000 38%, transparent 85%);
+    z-index: -1;
+}
+
+.page {
+    width: min(1100px, 92vw);
+    margin: 0px auto 40px;
+    display: grid;
+    gap: 18px;
+    animation: rise 600ms ease-out;
+}
+
+.hero {
+    background: linear-gradient(120deg, rgba(255, 255, 255, 0.8), rgba(246, 249, 245, 0.92));
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow);
+    border-radius: 18px;
+    padding: 22px 24px;
+    margin-top: 20px;
+}
+
+.eyebrow {
+    margin: 0;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--brand);
+    font-weight: 700;
+    font-size: 12px;
+}
+
+h1 {
+    margin: 8px 0 8px;
+    font-size: clamp(24px, 4vw, 38px);
+    line-height: 1.05;
+}
+
+.subtitle {
+    margin: 0;
+    max-width: 76ch;
+    color: var(--ink-soft);
+}
+
+.panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    box-shadow: var(--shadow);
+    padding: 16px;
+}
+
+.controls {
+    display: grid;
+    grid-template-columns: 1.4fr 220px 260px auto;
+    gap: 14px;
+    align-items: end;
+}
+
+.field {
+    display: grid;
+    gap: 8px;
+}
+
+.field>span {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: var(--ink-soft);
+}
+
+.file-field {
+    min-width: 200px;
+}
+
+input[type="file"],
+input[type="number"],
+select {
+    width: 100%;
+    border: 1px solid var(--line);
+    background: #fff;
+    border-radius: 10px;
+    padding: 10px 12px;
+    color: var(--ink);
+    font-family: inherit;
+}
+
+.actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.btn {
+    border: 0;
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-weight: 700;
+    font-family: inherit;
+    cursor: pointer;
+    transition: transform 130ms ease, opacity 130ms ease, box-shadow 130ms ease;
+}
+
+.btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+}
+
+.btn-primary {
+    background: var(--brand);
+    color: #fff;
+    box-shadow: 0 6px 18px rgba(15, 118, 110, 0.3);
+}
+
+.btn-primary:hover:not(:disabled) {
+    background: var(--brand-strong);
+}
+
+.btn-accent {
+    background: var(--accent);
+    color: #fff;
+    box-shadow: 0 6px 18px rgba(180, 83, 9, 0.3);
+}
+
+.btn-accent:hover:not(:disabled) {
+    background: var(--accent-strong);
+}
+
+.btn-mini {
+    padding: 6px 9px;
+    font-size: 12px;
+    margin: 2px;
+}
+
+h2 {
+    margin: 0 0 10px;
+    font-size: 16px;
+}
+
+#status {
+    margin: 0;
+    white-space: pre-wrap;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 13px;
+    line-height: 1.4;
+    background: #f9f9f7;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 12px;
+    min-height: 78px;
+}
+
+.table-wrap {
+    overflow-x: auto;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+
+th,
+td {
+    text-align: left;
+    border-bottom: 1px solid var(--line);
+    padding: 8px;
+}
+
+th {
+    color: var(--ink-soft);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+tbody tr {
+    animation: fadein 220ms ease;
+}
+
+@keyframes rise {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes fadein {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+@media (max-width: 860px) {
+    .controls {
+        grid-template-columns: 1fr;
+    }
+
+    .actions {
+        width: 100%;
+    }
+
+    .btn {
+        flex: 1;
+    }
+}

@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Generador SQL de Parametros</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="bg-grid" aria-hidden="true"></div>
+  <main class="page">
+    <header class="hero">
+      <p class="eyebrow">SQL Tool</p>
+      <h1>Generador de Scripts desde Excel</h1>
+      <p class="subtitle">
+        Carga el archivo, filtra por <strong>SEC_EJECUTABLE</strong>, cruza hojas y descarga un ZIP con carpetas y SQL
+        en formato <strong>parametro</strong> y <strong>ejecutable_parametro</strong>.
+      </p>
+    </header>
+
+    <section class="panel controls">
+      <label class="field file-field">
+        <span>Archivo Excel (.xlsx)</span>
+        <input id="excelFile" type="file" accept=".xlsx,.xlsm,.xls" />
+      </label>
+
+      <label class="field">
+        <span>SEC_EJECUTABLE</span>
+        <input id="secEjecutable" type="number" value="30198" />
+      </label>
+
+      <label class="field">
+        <span>Ordenar por</span>
+        <select id="sortBy">
+          <option value="ordenamiento" selected>ORDENAMIENTO</option>
+          <option value="sec_ejecutable_parametro">SEC_EJECUTABLE_PARAMETRO</option>
+          <option value="sec_parametro">SEC_PARAMETRO</option>
+        </select>
+      </label>
+
+      <div class="actions">
+        <button id="btnProcesar" class="btn btn-primary" type="button">Procesar</button>
+        <button id="btnDescargar" class="btn btn-accent" type="button" disabled>Descargar ZIP</button>
+        <button id="btnDescargarTodo" class="btn" type="button" disabled>Descargar todo sin comprimir</button>
+        <button id="btnAbrirTodo" class="btn" type="button" disabled>Abrir todo en navegador</button>
+      </div>
+    </section>
+
+    <section class="panel status-panel">
+      <h2>Estado</h2>
+      <pre id="status">Esperando archivo...</pre>
+    </section>
+
+    <section class="panel results">
+      <h2>Parametros detectados</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>SEC_EJECUTABLE_PARAMETRO</th>
+              <th>SEC_PARAMETRO</th>
+              <th>PARAMETRO</th>
+              <th>NOMBRE</th>
+              <th>TIPO_DATO</th>
+              <th>ORDEN</th>
+              <th>REQUERIDO</th>
+              <th>ACCIONES</th>
+            </tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
