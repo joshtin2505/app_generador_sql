@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Generador SQL de Parametros</title>
+  <title>Generador SQL de Migraciones</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -14,10 +14,11 @@
   <main class="page">
     <header class="hero">
       <p class="eyebrow">SQL Tool</p>
-      <h1>Generador de Scripts desde Excel</h1>
+      <h1>Generador de Scripts de Migración desde Excel</h1>
       <p class="subtitle">
-        Carga el archivo, filtra por <strong>SEC_EJECUTABLE</strong>, cruza hojas y descarga un ZIP con carpetas y SQL
-        en formato <strong>parametro</strong> y <strong>ejecutable_parametro</strong>.
+        Carga el archivo, filtra por <strong>SEC_EJECUTABLE</strong>, cruza hojas y descarga un ZIP con scripts para
+        <strong>AAT_EJECUTABLE</strong>, <strong>SRT_PARAMETRO</strong>, <strong>SRT_EJECUTABLE_PARAMETRO</strong>,
+        <strong>MST_MENU</strong>, <strong>MST_OBJETO</strong> y <strong>MSP_PRIVILEGIOS_ROL</strong>.
       </p>
     </header>
 
@@ -30,6 +31,11 @@
       <label class="field">
         <span>SEC_EJECUTABLE</span>
         <input id="secEjecutable" type="number" value="30198" />
+      </label>
+
+      <label class="field">
+        <span>Rol privilegios</span>
+        <input id="rolPrivilegios" type="text" value="ICEBERG_ZK" />
       </label>
 
       <label class="field">
@@ -47,6 +53,10 @@
         <button id="btnDescargarTodo" class="btn" type="button" disabled>Descargar todo sin comprimir</button>
         <button id="btnAbrirTodo" class="btn" type="button" disabled>Abrir todo en navegador</button>
       </div>
+      <p class="hint">
+        El libro debe incluir las hojas <strong>Ejecutable</strong>, <strong>Ejecutable_Parametro</strong>,
+        <strong>Parametro</strong>, <strong>Menu</strong>, <strong>MST_OBJETO</strong> y <strong>Control IDs</strong>.
+      </p>
     </section>
 
     <section class="panel status-panel">

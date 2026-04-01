@@ -1,6 +1,7 @@
 const ui = {
   excelFile: document.getElementById("excelFile"),
   secEjecutable: document.getElementById("secEjecutable"),
+  rolPrivilegios: document.getElementById("rolPrivilegios"),
   sortBy: document.getElementById("sortBy"),
   btnProcesar: document.getElementById("btnProcesar"),
   btnDescargar: document.getElementById("btnDescargar"),
@@ -12,6 +13,7 @@ const ui = {
 
 let generatedFiles = [];
 let generatedPairs = [];
+let generatedContext = null;
 let lastWorkbookName = "";
 
 function setStatus(message) {
@@ -19,7 +21,7 @@ function setStatus(message) {
 }
 
 function normalizeHeader(value) {
-  return String(value || "").trim().toUpperCase();
+  return stripDiacritics(String(value || "").trim()).toUpperCase();
 }
 
 function cleanValue(value) {
@@ -27,7 +29,10 @@ function cleanValue(value) {
 }
 
 function toSlug(parametro) {
-  return cleanValue(parametro).toLowerCase();
+  return stripDiacritics(cleanValue(parametro))
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
 }
 
 function toDownloadFileName(path) {
@@ -138,7 +143,7 @@ function sheetToObjects(sheet, requiredHeaders) {
     throw new Error(`No se encontraron encabezados requeridos: ${requiredHeaders.join(", ")}`);
   }
 
-  const headers = rawRows[headerRowIndex].map((h) => String(h || "").trim());
+  const headers = rawRows[headerRowIndex].map((h) => normalizeHeader(h));
   const dataRows = rawRows.slice(headerRowIndex + 1);
 
   return dataRows
@@ -152,6 +157,10 @@ function sheetToObjects(sheet, requiredHeaders) {
     .filter((row) => Object.values(row).some((v) => cleanValue(v) !== ""));
 }
 
+function getSheetRows(sheet) {
+  return XLSX.utils.sheet_to_json(sheet, { header: 1, blankrows: false, defval: "" });
+}
+
 function findSheet(workbook, expectedName) {
   const wanted = expectedName.toUpperCase();
   const exact = workbook.SheetNames.find((name) => normalizeHeader(name) === wanted);
@@ -161,6 +170,153 @@ function findSheet(workbook, expectedName) {
   if (loose) return workbook.Sheets[loose];
 
   return null;
+}
+
+function sqlText(value) {
+  const text = cleanValue(value);
+  return text === "" ? "NULL" : `'${escapeSqlText(text)}'`;
+}
+
+function sqlNumber(value) {
+  const text = cleanValue(value);
+  return text === "" ? "NULL" : text;
+}
+
+function sqlNumberOrDefault(value, defaultValue) {
+  const text = cleanValue(value);
+  if (text === "") return String(defaultValue);
+  return text;
+}
+
+function buildComponentLabel(componentRow) {
+  const text = cleanValue(componentRow?.nombre);
+  if (!text) return "ICEBERG";
+  return text.split("-")[0].trim() || text;
+}
+
+function parseComponentSheet(sheet) {
+  return getSheetRows(sheet)
+    .slice(2)
+    .map((row) => ({
+      id: cleanValue(row[0]),
+      componente: cleanValue(row[1]),
+      nombre: cleanValue(row[2])
+    }))
+    .filter((row) => row.id !== "" || row.componente !== "" || row.nombre !== "");
+}
+
+function parseMenuSheet(sheet) {
+  return getSheetRows(sheet)
+    .slice(2)
+    .map((row) => ({
+      source: {
+        menu: cleanValue(row[0]),
+        description: cleanValue(row[1]),
+        order: cleanValue(row[2]),
+        type: cleanValue(row[3]),
+        object: cleanValue(row[4]),
+        predecessor: cleanValue(row[5]),
+        icon: cleanValue(row[6])
+      },
+      target: {
+        menu: cleanValue(row[8]),
+        description: cleanValue(row[9]),
+        order: cleanValue(row[10]),
+        type: cleanValue(row[11]),
+        object: cleanValue(row[12]),
+        predecessor: cleanValue(row[13])
+      }
+    }))
+    .filter((row) => Object.values(row.source).some((value) => value !== "") || Object.values(row.target).some((value) => value !== ""));
+}
+
+function findBestMenuRows(menuRows, executableRow, objectRow) {
+  const executableNames = [
+    executableRow?.NOMBRE,
+    executableRow?.EJECUTABLE,
+    executableRow?.DESCRIPCION
+  ]
+    .map(normalizeHeader)
+    .filter(Boolean);
+
+  const objectNames = [
+    objectRow?.NOMBRE_OBJETO,
+    objectRow?.NOMBRE_COMPLEMENTO,
+    objectRow?.DESCRIPCION_OBJETO
+  ]
+    .map(normalizeHeader)
+    .filter(Boolean);
+
+  const ranked = menuRows
+    .map((row) => {
+      let score = 0;
+      const targetObject = normalizeHeader(row.target.object);
+      const sourceObject = normalizeHeader(row.source.object);
+      const targetDescription = normalizeHeader(row.target.description);
+
+      if (executableNames.includes(targetObject)) score += 10;
+      if (objectNames.includes(targetObject)) score += 9;
+      if (executableNames.includes(sourceObject)) score += 6;
+      if (objectNames.includes(sourceObject)) score += 5;
+      if (executableNames.includes(targetDescription)) score += 2;
+
+      return { row, score };
+    })
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score);
+
+  if (!ranked.length) return [];
+
+  const bestScore = ranked[0].score;
+  return ranked.filter((item) => item.score === bestScore).map((item) => item.row);
+}
+
+function buildMenuLineage(menuRows, seedRows) {
+  const byTargetMenu = new Map(menuRows.map((row) => [cleanValue(row.target.menu), row]));
+  const ordered = [];
+  const visited = new Set();
+
+  function visit(row) {
+    if (!row) return;
+    const menuId = cleanValue(row.target.menu);
+    if (!menuId || visited.has(menuId)) return;
+
+    const predecessor = cleanValue(row.target.predecessor);
+    if (predecessor) {
+      visit(byTargetMenu.get(predecessor));
+    }
+
+    visited.add(menuId);
+    ordered.push(row);
+  }
+
+  seedRows.forEach(visit);
+  return ordered;
+}
+
+function findObjectRow(objectRows, executableRow, menuRows) {
+  const executableNames = [executableRow?.NOMBRE, executableRow?.EJECUTABLE]
+    .map(normalizeHeader)
+    .filter(Boolean);
+
+  const menuNames = menuRows
+    .flatMap((row) => [row.target.object, row.source.object])
+    .map(normalizeHeader)
+    .filter(Boolean);
+
+  return (
+    objectRows.find((row) => {
+      const names = [row.NOMBRE_OBJETO, row.NOMBRE_COMPLEMENTO]
+        .map(normalizeHeader)
+        .filter(Boolean);
+      return names.some((name) => executableNames.includes(name) || menuNames.includes(name));
+    }) || null
+  );
+}
+
+function findComponentRow(componentRows, secComponente) {
+  const target = cleanValue(secComponente);
+  return componentRows.find((row) => cleanValue(row.id) === target) || null;
 }
 
 function buildParametroSql(paramRow) {
@@ -307,6 +463,288 @@ END;
 /`;
 }
 
+function buildAatEjecutableSql(executableRow, componentRow) {
+  const secEjecutable = cleanValue(executableRow.SEC_EJECUTABLE);
+  const ejecutable = cleanValue(executableRow.EJECUTABLE);
+  const secComponente = cleanValue(executableRow.SEC_COMPONENTE || componentRow?.id);
+  const nombre = cleanValue(executableRow.NOMBRE);
+  const estado = cleanValue(executableRow.ESTADO || "A");
+  const tipoEjecutable = cleanValue(executableRow.TIPO);
+  const secAtributo = sqlNumberOrDefault(executableRow.ATRIBUTO, 1);
+  const descripcion = cleanValue(executableRow.DESCRIPCION || nombre);
+  const nivelLog = sqlNumberOrDefault(executableRow.NIVEL, 0);
+
+  return `PROMPT Insertando o actualizando en la tabla AAT_EJECUTABLE, el objeto ${ejecutable}...
+DECLARE
+    xml_fuente CLOB;
+    existe NUMBER:=0;
+BEGIN
+	xml_fuente := TO_CLOB('');
+
+	SELECT	COUNT(*)
+        INTO	existe
+	FROM
+        aat_ejecutable
+	WHERE	
+        sec_ejecutable = ${secEjecutable};
+		
+	IF existe = 0 THEN
+    INSERT INTO aat_ejecutable( 
+        sec_ejecutable,
+        ejecutable,
+        sec_componente,
+        nombre,
+        estado,
+        tipo_ejecutable,
+        virtualizacion,
+        fecha_creacion,
+        fecha_ultima_actualizacion,
+        fuente,
+        sec_atributo,
+        sec_icono,
+        funcion_previa,
+        funcion_posterior,
+        descripcion,
+        sec_ejecutable_reporte,
+        nivel_log)
+    VALUES (
+    ${secEjecutable},
+    '${escapeSqlText(ejecutable)}',
+    ${secComponente || "NULL"},
+    '${escapeSqlText(nombre)}',
+    '${escapeSqlText(estado)}',
+    '${escapeSqlText(tipoEjecutable)}',
+    'N',
+    sysdate,
+    sysdate,
+    to_clob(xml_fuente),
+    ${secAtributo},
+    NULL,
+    NULL,
+    NULL,
+    '${escapeSqlText(descripcion)}',
+    NULL,
+    ${nivelLog});
+    ELSE
+		UPDATE aat_ejecutable
+		SET 
+            ejecutable = '${escapeSqlText(ejecutable)}',
+            sec_componente = ${secComponente || "NULL"},
+            nombre = '${escapeSqlText(nombre)}',
+            estado = '${escapeSqlText(estado)}',
+            tipo_ejecutable = '${escapeSqlText(tipoEjecutable)}',
+            virtualizacion = 'N',
+            fecha_ultima_actualizacion = sysdate,
+            fuente =to_clob(xml_fuente),
+            descripcion = '${escapeSqlText(descripcion)}'
+		WHERE 
+            sec_ejecutable = ${secEjecutable};	
+	END IF;
+	
+	COMMIT;
+EXCEPTION
+	WHEN OTHERS THEN
+		ROLLBACK;
+		pk_excepcion.error_aplicacion;
+END;
+/`;
+}
+
+function buildMstMenuSql(menuRow) {
+  const menu = cleanValue(menuRow.target.menu);
+  const descripcion = cleanValue(menuRow.target.description || menuRow.source.description || menuRow.target.object || menu);
+  const orden = cleanValue(menuRow.target.order || menuRow.source.order || "0");
+  const tipo = cleanValue(menuRow.target.type);
+  const objeto = cleanValue(menuRow.target.object);
+  const predecesor = cleanValue(menuRow.target.predecessor || menuRow.source.predecessor);
+  const icono = cleanValue(menuRow.source.icon || menuRow.target.icon || "");
+
+  return `PROMPT Insertando o actualizando en la tabla MST_MENU, el objeto ${descripcion}...
+DECLARE
+	existe			NUMBER:=0;
+BEGIN
+	SELECT	COUNT(*)
+	INTO	existe
+	FROM	MST_MENU
+	WHERE	
+        menu = ${menu || "NULL"};
+		
+	IF existe = 0 THEN
+       INSERT INTO MST_MENU  (MENU,DESCRIPCION,HIJO_ORDEN,TIPO_OBJETO_EJECUTABLE,NOMBRE_OBJETO_EJECUTABLE,MENU_PREDECESOR,ICONO) 
+         VALUES ( ${sqlText(menu)}, ${sqlText(descripcion)} ,${sqlText(orden)},${sqlText(tipo)},${sqlText(objeto)},${sqlText(predecesor)}, ${sqlText(icono || (tipo ? "REPORTE" : "FOLDER"))});    
+	ELSE
+		UPDATE MST_MENU
+		SET 
+            descripcion = ${sqlText(descripcion)},
+            hijo_orden = ${sqlNumberOrDefault(orden, 0)},
+            tipo_objeto_ejecutable = ${sqlText(tipo)},
+            nombre_objeto_ejecutable = ${sqlText(objeto)},
+            menu_predecesor = ${sqlNumber(predecesor)},
+            icono = ${sqlText(icono || (tipo ? "REPORTE" : "FOLDER"))}
+		WHERE 
+            menu = ${menu};
+	END IF;
+	
+	COMMIT;
+EXCEPTION
+	WHEN OTHERS THEN
+		ROLLBACK;
+		pk_excepcion.error_aplicacion;
+END;
+/`;
+}
+
+function buildMstObjetoSql(objectRow, executableRow, componentRow) {
+  const tipoObjeto = cleanValue(objectRow?.TIPO_OBJETO || executableRow?.TIPO || "JR");
+  const nombreObjeto = cleanValue(objectRow?.NOMBRE_OBJETO || executableRow?.EJECUTABLE);
+  const descripcionObjeto = cleanValue(objectRow?.DESCRIPCION_OBJETO || executableRow?.DESCRIPCION || executableRow?.NOMBRE);
+  const nombreComplemento = cleanValue(objectRow?.NOMBRE_COMPLEMENTO || executableRow?.NOMBRE);
+  const componente = buildComponentLabel(componentRow);
+
+  return `PROMPT Insertando o actualizando en la tabla MST_OBJETO, el objeto ${nombreObjeto}...
+DECLARE
+	existe			NUMBER:=0;
+BEGIN
+	SELECT	COUNT(*)
+	INTO	existe
+	FROM	mst_objeto
+	WHERE	nombre_objeto = ${sqlText(nombreObjeto)}
+	AND TIPO_OBJETO = ${sqlText(tipoObjeto)};
+		
+	IF existe = 0 THEN
+         INSERT INTO MST_OBJETO (TIPO_OBJETO,NOMBRE_OBJETO,REVISION,FECHA_INSTALACION,DESCRIPCION_OBJETO,COMPONENTE,NOMBRE_COMPLEMENTO,EJECUTA_BAT) 
+                VALUES (${sqlText(tipoObjeto)},${sqlText(nombreObjeto)}, 0, SYSDATE, ${sqlText(descripcionObjeto)},${sqlText(componente)},${sqlText(nombreComplemento)},'N'); 
+	ELSE
+		UPDATE MST_OBJETO
+		SET
+            DESCRIPCION_OBJETO = ${sqlText(descripcionObjeto)},
+            COMPONENTE = ${sqlText(componente)},
+            NOMBRE_COMPLEMENTO = ${sqlText(nombreComplemento)}
+		WHERE
+			nombre_objeto = ${sqlText(nombreObjeto)}
+		AND TIPO_OBJETO = ${sqlText(tipoObjeto)};
+	END IF;
+	
+	COMMIT;
+EXCEPTION
+	WHEN OTHERS THEN
+		ROLLBACK;
+		pk_excepcion.error_aplicacion;
+END;
+/`;
+}
+
+function buildMspPrivilegiosRolSql(objectRow, executableRow, roleName) {
+  const rol = cleanValue(roleName || "ICEBERG_ZK");
+  const miEjecutable = cleanValue(executableRow?.EJECUTABLE || objectRow?.NOMBRE_OBJETO);
+
+  return `PROMPT Actualizando los permisos de las opciones de menú, el objeto ${miEjecutable}...
+DECLARE
+    mi_rol VARCHAR2(30)         := ${sqlText(rol)};
+    mi_ejecutable VARCHAR2(30)  := ${sqlText(miEjecutable)};
+BEGIN
+
+    FOR x in (
+        SELECT *
+        FROM mst_menu
+        WHERE 
+            tipo_objeto_ejecutable IS NOT NULL
+        AND nombre_objeto_Ejecutable = mi_ejecutable
+        AND NOT EXISTS (
+            SELECT 'X'
+            FROM mst_rol_objeto_menu
+            WHERE 
+                rol = mi_rol
+            AND nombre_objeto_ejecutable = mst_menu.nombre_objeto_ejecutable
+            AND tipo_objeto_ejecutable = mst_menu.tipo_objeto_ejecutable
+        )
+    )
+    LOOP
+        msp_rol_objeto_menu.crear (
+            un_nombre_objeto_ejecutable    => x.nombre_objeto_ejecutable,
+            un_tipo_objeto_ejecutable      => x.tipo_objeto_ejecutable,
+            un_rol                         => mi_rol,
+            un_visible                     => 'S',
+            un_leer                        => 'N',
+            un_insertar                    => 'N',
+            un_actualizar                  => 'N',
+            un_borrar                      => 'N',
+            un_ejecutar                    => 'N',
+            un_por_objeto                  => 'S'
+        );
+
+        msp_rol_objeto_menu.insertar_privilegios (
+            un_tipo_objeto_ejecutable        => x.tipo_objeto_ejecutable,
+            un_nombre_objeto_ejecutable      => x.nombre_objeto_ejecutable,
+            un_rol                           => mi_rol
+        );
+    END LOOP;
+
+    msp_menu.reconstruye_menu;
+    msp_menu.reconstruye_menu_rol(mi_rol);
+
+    UPDATE mst_rol
+    SET estado ='A'
+    WHERE rol = mi_rol;
+
+    COMMIT;
+
+EXCEPTION
+	WHEN OTHERS THEN
+		ROLLBACK;
+		pk_excepcion.error_aplicacion;
+END;
+/`;
+}
+
+function buildMenuFileName(menuRow) {
+  const base = toSlug(menuRow.target.object || menuRow.target.description || menuRow.source.description || menuRow.target.menu);
+  return `opcion_menu/mst_menu_${base || cleanValue(menuRow.target.menu)}.sql`;
+}
+
+function buildObjectFileName(objectRow, executableRow) {
+  const base = toSlug(objectRow?.NOMBRE_COMPLEMENTO || executableRow?.NOMBRE || executableRow?.EJECUTABLE);
+  return `opcion_menu/mst_objeto_${base || cleanValue(executableRow?.EJECUTABLE)}.sql`;
+}
+
+function buildExecutableFileName(executableRow) {
+  const base = toSlug(executableRow?.NOMBRE || executableRow?.EJECUTABLE);
+  return `ejecutable/insert_ejecutable_${base || cleanValue(executableRow?.EJECUTABLE)}.sql`;
+}
+
+function buildPrivilegesFileName(executableRow) {
+  const base = toSlug(executableRow?.NOMBRE || executableRow?.EJECUTABLE);
+  return `opcion_menu/msp_privilegios_rol_${base || cleanValue(executableRow?.EJECUTABLE)}.sql`;
+}
+
+function buildWorkbookOutputs(context, roleName) {
+  const parameterPairs = context.parameterPairs;
+  const menuFiles = context.menuChain.map((menuRow) => ({
+    path: buildMenuFileName(menuRow),
+    content: buildMstMenuSql(menuRow)
+  }));
+
+  const executableFile = {
+    path: buildExecutableFileName(context.executableRow),
+    content: buildAatEjecutableSql(context.executableRow, context.componentRow)
+  };
+
+  const objectFile = {
+    path: buildObjectFileName(context.objectRow, context.executableRow),
+    content: buildMstObjetoSql(context.objectRow, context.executableRow, context.componentRow)
+  };
+
+  const privilegesFile = {
+    path: buildPrivilegesFileName(context.executableRow),
+    content: buildMspPrivilegiosRolSql(context.objectRow, context.executableRow, roleName)
+  };
+
+  return {
+    parameterPairs,
+    files: [...flattenFiles(parameterPairs), executableFile, ...menuFiles, objectFile, privilegesFile]
+  };
+}
+
 function drawRows(items) {
   ui.rows.innerHTML = "";
   if (!items.length) return;
@@ -404,6 +842,9 @@ function refreshStatus(secEjecutableTarget) {
     [
       `Archivo: ${lastWorkbookName}`,
       `SEC_EJECUTABLE: ${secEjecutableTarget}`,
+      `Rol privilegios: ${cleanValue(ui.rolPrivilegios.value) || "ICEBERG_ZK"}`,
+      `Ejecutable detectado: ${generatedContext?.executableRow?.EJECUTABLE || "N/A"}`,
+      `Menu detectado: ${generatedContext?.menuChain?.length || 0}`,
       `Parametros encontrados: ${generatedPairs.length}`,
       `Archivos generados: ${generatedFiles.length}`,
       "",
@@ -502,6 +943,7 @@ function openAllInBrowser() {
 async function processWorkbook() {
   const file = ui.excelFile.files[0];
   const secEjecutableTarget = cleanValue(ui.secEjecutable.value);
+  const roleName = cleanValue(ui.rolPrivilegios.value) || "ICEBERG_ZK";
 
   if (!file) {
     setStatus("Debes seleccionar un archivo Excel.");
@@ -515,6 +957,7 @@ async function processWorkbook() {
 
   generatedFiles = [];
   generatedPairs = [];
+  generatedContext = null;
   updateButtonsState(false);
   ui.rows.innerHTML = "";
 
@@ -524,17 +967,36 @@ async function processWorkbook() {
     const workbook = XLSX.read(buffer, { type: "array" });
     lastWorkbookName = file.name;
 
-    const shEjecutableParametro = findSheet(workbook, "ejecutable_parametro");
-    const shParametro = findSheet(workbook, "parametro");
+    const shEjecutable = findSheet(workbook, "Ejecutable");
+    const shEjecutableParametro = findSheet(workbook, "Ejecutable_Parametro");
+    const shParametro = findSheet(workbook, "Parametro");
+    const shMenu = findSheet(workbook, "Menu");
+    const shMstObjeto = findSheet(workbook, "MST_OBJETO");
+    const shComponentes = findSheet(workbook, "Control IDs");
 
-    if (!shEjecutableParametro || !shParametro) {
-      throw new Error("No se encontraron las hojas ejecutable_parametro y/o parametro.");
+    if (!shEjecutable || !shEjecutableParametro || !shParametro || !shMenu || !shMstObjeto || !shComponentes) {
+      throw new Error("No se encontraron las hojas requeridas (Ejecutable, Ejecutable_Parametro, Parametro, Menu, MST_OBJETO o Control IDs).");
     }
 
+    const executableRows = sheetToObjects(shEjecutable, ["SEC_EJECUTABLE", "EJECUTABLE", "SEC_COMPONENTE", "NOMBRE"]);
     const ejecutableRows = sheetToObjects(shEjecutableParametro, ["SEC_EJECUTABLE", "SEC_PARAMETRO", "SEC_EJECUTABLE_PARAMETRO"]);
     const parametroRows = sheetToObjects(shParametro, ["SEC_PARAMETRO", "PARAMETRO", "NOMBRE", "TIPO_DATO", "DATOS"]);
+    const menuRows = parseMenuSheet(shMenu);
+    const objectRows = sheetToObjects(shMstObjeto, ["TIPO_OBJETO", "NOMBRE_OBJETO", "DESCRIPCION_OBJETO", "NOMBRE_COMPLEMENTO"]);
+    const componentRows = parseComponentSheet(shComponentes);
+
+    const executableRow = executableRows.find((row) => cleanValue(row.SEC_EJECUTABLE) === secEjecutableTarget);
+
+    if (!executableRow) {
+      throw new Error(`No se encontró el ejecutable con SEC_EJECUTABLE = ${secEjecutableTarget}.`);
+    }
 
     const paramsBySec = new Map(parametroRows.map((row) => [cleanValue(row.SEC_PARAMETRO), row]));
+    const componentRow = findComponentRow(componentRows, executableRow.SEC_COMPONENTE);
+    const preliminaryObjectRow = findObjectRow(objectRows, executableRow, []);
+    const menuSeedRows = findBestMenuRows(menuRows, executableRow, preliminaryObjectRow);
+    const menuChain = buildMenuLineage(menuRows, menuSeedRows);
+    const objectRow = findObjectRow(objectRows, executableRow, menuChain) || preliminaryObjectRow;
 
     const filtered = ejecutableRows
       .filter((row) => cleanValue(row.SEC_EJECUTABLE) === secEjecutableTarget)
@@ -549,9 +1011,18 @@ async function processWorkbook() {
       return;
     }
 
-    generatedPairs = buildGeneratedPairs(filtered);
-    generatedPairs = sortPairs(generatedPairs, cleanValue(ui.sortBy.value).toLowerCase());
-    generatedFiles = flattenFiles(generatedPairs);
+    const sortedParameterPairs = sortPairs(buildGeneratedPairs(filtered), cleanValue(ui.sortBy.value).toLowerCase());
+    generatedContext = {
+      executableRow,
+      componentRow,
+      objectRow,
+      menuChain,
+      parameterPairs: sortedParameterPairs
+    };
+
+    const outputs = buildWorkbookOutputs(generatedContext, roleName);
+    generatedPairs = outputs.parameterPairs;
+    generatedFiles = outputs.files;
 
     drawRows(generatedPairs);
     updateButtonsState(true);
