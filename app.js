@@ -633,16 +633,7 @@ BEGIN
 		
 	IF existe = 0 THEN
          INSERT INTO MST_OBJETO (TIPO_OBJETO,NOMBRE_OBJETO,REVISION,FECHA_INSTALACION,DESCRIPCION_OBJETO,COMPONENTE,NOMBRE_COMPLEMENTO,EJECUTA_BAT) 
-                VALUES (${sqlText(tipoObjeto)},${sqlText(nombreObjeto)}, 0, SYSDATE, ${sqlText(descripcionObjeto)},${sqlText(componente)},${sqlText(nombreComplemento)},'N'); 
-	ELSE
-		UPDATE MST_OBJETO
-		SET
-            DESCRIPCION_OBJETO = ${sqlText(descripcionObjeto)},
-            COMPONENTE = ${sqlText(componente)},
-            NOMBRE_COMPLEMENTO = ${sqlText(nombreComplemento)}
-		WHERE
-			nombre_objeto = ${sqlText(nombreObjeto)}
-		AND TIPO_OBJETO = ${sqlText(tipoObjeto)};
+                VALUES (${sqlText(tipoObjeto)},${sqlText(nombreObjeto)}, 0, SYSDATE, ${sqlText(descripcionObjeto)},${sqlText(componente)},${sqlText(nombreComplemento)},'N');
 	END IF;
 	
 	COMMIT;
