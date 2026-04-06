@@ -578,9 +578,9 @@ function buildMstMenuSql(menuRow) {
   const predecesor = cleanValue(menuRow.target.predecessor || menuRow.source.predecessor);
   const icono = cleanValue(menuRow.source.icon || menuRow.target.icon || "");
 
-  return `PROMPT Insertando o actualizando en la tabla MST_MENU, el objeto ${descripcion}...
+  return `PROMPT Insertando o actualizando en la tabla MST_MENU, el objeto ${objeto}...
 DECLARE
-	existe			NUMBER:=0;
+	existe			NUMBER := 0;
 BEGIN
 	SELECT	COUNT(*)
 	INTO	existe
@@ -615,9 +615,9 @@ END;
 }
 
 function buildMstObjetoSql(objectRow, executableRow, componentRow) {
-  const tipoObjeto = cleanValue(objectRow?.TIPO_OBJETO || executableRow?.TIPO || "JR");
+  const tipoObjeto = cleanValue((objectRow?.TIPO_OBJETO || executableRow?.TIPO) ? "JR" : null);
   const nombreObjeto = cleanValue(objectRow?.NOMBRE_OBJETO || executableRow?.EJECUTABLE);
-  const descripcionObjeto = cleanValue(objectRow?.DESCRIPCION_OBJETO || executableRow?.DESCRIPCION || executableRow?.NOMBRE);
+  const descripcionObjeto = cleanValue(executableRow?.DESCRIPCION || objectRow?.DESCRIPCION_OBJETO || executableRow?.NOMBRE);
   const nombreComplemento = cleanValue(objectRow?.NOMBRE_COMPLEMENTO || executableRow?.NOMBRE);
   const componente = buildComponentLabel(componentRow);
 
