@@ -404,7 +404,8 @@ EXCEPTION
 \t\tROLLBACK;
 \t\tpk_excepcion.error_aplicacion;
 END;
-/`;
+/
+`;
 }
 
 function buildEjecutableSql(epRow, paramRow) {
@@ -476,7 +477,8 @@ EXCEPTION
 \t\tROLLBACK;
 \t\tpk_excepcion.error_aplicacion;
 END;
-/`;
+/
+`;
 }
 
 function buildAatEjecutableSql(executableRow, componentRow) {
@@ -563,7 +565,8 @@ EXCEPTION
 		ROLLBACK;
 		pk_excepcion.error_aplicacion;
 END;
-/`;
+/
+`;
 }
 
 function buildMstMenuSql(menuRow) {
@@ -607,7 +610,8 @@ EXCEPTION
 		ROLLBACK;
 		pk_excepcion.error_aplicacion;
 END;
-/`;
+/
+`;
 }
 
 function buildMstObjetoSql(objectRow, executableRow, componentRow) {
@@ -647,7 +651,8 @@ EXCEPTION
 		ROLLBACK;
 		pk_excepcion.error_aplicacion;
 END;
-/`;
+/
+`;
 }
 
 function buildMspPrivilegiosRolSql(objectRow, executableRow, roleName) {
@@ -710,7 +715,8 @@ EXCEPTION
 		ROLLBACK;
 		pk_excepcion.error_aplicacion;
 END;
-/`;
+/
+`;
 }
 
 function buildMenuFileName(menuRow) {
