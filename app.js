@@ -578,7 +578,7 @@ function buildMstMenuSql(menuRow) {
   const predecesor = cleanValue(menuRow.target.predecessor || menuRow.source.predecessor);
   const icono = cleanValue(menuRow.source.icon || menuRow.target.icon || "");
 
-  return `PROMPT Insertando o actualizando en la tabla MST_MENU, el objeto ${objeto}...
+  return `PROMPT Insertando o actualizando en la tabla MST_MENU, el objeto ${objeto.toUpperCase()}...
 DECLARE
 	existe			NUMBER := 0;
 BEGIN
@@ -590,14 +590,14 @@ BEGIN
 		
 	IF existe = 0 THEN
        INSERT INTO MST_MENU  (MENU,DESCRIPCION,HIJO_ORDEN,TIPO_OBJETO_EJECUTABLE,NOMBRE_OBJETO_EJECUTABLE,MENU_PREDECESOR,ICONO) 
-         VALUES ( ${sqlText(menu)}, ${sqlText(descripcion)} ,${sqlText(orden)},${sqlText(tipo)},${sqlText(objeto)},${sqlText(predecesor)}, ${sqlText(icono || (tipo ? "REPORTE" : "FOLDER"))});    
+         VALUES ( ${sqlText(menu)}, ${sqlText(descripcion)} ,${sqlText(orden)},${sqlText(tipo)},${sqlText(objeto.toUpperCase())},${sqlText(predecesor)}, ${sqlText(icono || (tipo ? "REPORTE" : "FOLDER"))});    
 	ELSE
 		UPDATE MST_MENU
 		SET 
             descripcion = ${sqlText(descripcion)},
             hijo_orden = ${sqlNumberOrDefault(orden, 0)},
             tipo_objeto_ejecutable = ${sqlText(tipo)},
-            nombre_objeto_ejecutable = ${sqlText(objeto)},
+            nombre_objeto_ejecutable = ${sqlText(objeto.toUpperCase())},
             menu_predecesor = ${sqlNumber(predecesor)},
             icono = ${sqlText(icono || (tipo ? "REPORTE" : "FOLDER"))}
 		WHERE 
@@ -1078,6 +1078,12 @@ async function processWorkbook() {
       throw new Error(`No se encontró el ejecutable con SEC_EJECUTABLE = ${secEjecutableTarget}.`);
     }
 
+    const relatedExecutableRows = ejecutableRows.filter((row) => cleanValue(row.SEC_EJECUTABLE) === secEjecutableTarget);
+
+    if (!relatedExecutableRows.length) {
+      setStatus(`No se encontraron filas en Ejecutable_Parametro para SEC_EJECUTABLE = ${secEjecutableTarget}.`);
+    }
+
     const paramsBySec = new Map(parametroRows.map((row) => [cleanValue(row.SEC_PARAMETRO), row]));
     const componentRow = findComponentRow(componentRows, executableRow.SEC_COMPONENTE);
     const preliminaryObjectRow = findObjectRow(objectRows, executableRow, []);
@@ -1085,8 +1091,7 @@ async function processWorkbook() {
     const menuChain = buildMenuLineage(menuRows, menuSeedRows, includeMenuPredecessors);
     const objectRow = findObjectRow(objectRows, executableRow, menuChain) || preliminaryObjectRow;
 
-    const filtered = ejecutableRows
-      .filter((row) => cleanValue(row.SEC_EJECUTABLE) === secEjecutableTarget)
+    const filtered = relatedExecutableRows
       .map((row) => ({
         ejecutable: row,
         parametro: paramsBySec.get(cleanValue(row.SEC_PARAMETRO))
@@ -1094,8 +1099,7 @@ async function processWorkbook() {
       .filter((pair) => pair.parametro);
 
     if (!filtered.length) {
-      setStatus(`No se encontraron registros para SEC_EJECUTABLE = ${secEjecutableTarget}.`);
-      return;
+      setStatus(`No hay parámetros para SEC_EJECUTABLE = ${secEjecutableTarget}; se generarán los demás scripts.`);
     }
 
     const sortedParameterPairs = sortPairs(buildGeneratedPairs(filtered), cleanValue(ui.sortBy.value).toLowerCase());
