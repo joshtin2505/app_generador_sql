@@ -40,7 +40,7 @@ export function GeneratorHero(props: {
             <FileSpreadsheet className="mr-2 h-4 w-4" />
             Descargar todo sin comprimir
           </Button>
-          <Button variant="outline" onClick={props.onOpenAll} disabled={!props.canExport}>
+          <Button variant="outline" type="button" onClick={props.onOpenAll} disabled={!props.canExport}>
             <ExternalLink className="mr-2 h-4 w-4" />
             Abrir todo en navegador
           </Button>

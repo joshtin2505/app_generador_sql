@@ -1,11 +1,11 @@
 "use client";
 
-import { useSqlGenerator } from "./use-sql-generator";
 import { GeneratorControls } from "./generator-controls";
 import { GeneratorFilesTable } from "./generator-files-table";
 import { GeneratorHero } from "./generator-hero";
 import { GeneratorParametersTable } from "./generator-parameters-table";
 import { GeneratorStatus } from "./generator-status";
+import { useSqlGenerator } from "./use-sql-generator";
 
 export function SqlGeneratorPage() {
   const generator = useSqlGenerator();
