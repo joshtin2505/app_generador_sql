@@ -796,7 +796,6 @@ function buildTxtReportFileName(objectRow, executableRow) {
 
 function buildWorkbookOutputs(context, roleName) {
   const parameterPairs = context.parameterPairs;
-  console.log("Building workbook outputs with context:", context);
   const menuFiles = context.menuChain.map((menuRow) => ({
     path: buildMenuFileName(menuRow),
     content: buildMstMenuSql(menuRow)
