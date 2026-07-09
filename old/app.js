@@ -18,6 +18,21 @@ let generatedPairs = [];
 let generatedContext = null;
 let lastWorkbookName = "";
 
+const COMPONENTES = {
+  CC: "CUENTAS POR COBRAR",
+  CP: "CUENTAS POR PAGAR",
+  PR: "PRESUPUESTO",
+  CO: "CONTABILIDAD",
+  IN: "INVENTARIO",
+  AQ: "ADQUISICIONES",
+  RE: "RECURSOS HUMANOS",
+  GE: "GENERAL",
+  CR: "CREDITOS",
+  TE: "TESORERIA",
+  PT: "PRESUPUESTO",
+  SU: "SUMINISTROS"
+}
+
 function setStatus(message) {
   ui.status.textContent = message;
 }
@@ -710,28 +725,78 @@ END;
 `;
 }
 
+function buildTxtReportFile(objectRow, executableRow, parameterPairs) {
+  const nombreReport = cleanValue(objectRow?.NOMBRE_COMPLEMENTO || executableRow?.NOMBRE);
+  const descriptionReport = cleanValue(executableRow.DESCRIPCION);
+
+  const paramsList = parameterPairs.map((param)=> param.parametro.PARAMETRO).join("\n");
+  const paramsConfig = parameterPairs.map((param)=> 
+    `Name        : ${param.parametro.PARAMETRO}
+Description : ${param.parametro.NOMBRE}:
+Required    : ${param.ejecutable.REQUERIDO === "S" ? "Si" : "No"}
+Class       : ${param.parametro.TIPO_DATO === "F" ? "java.util.Date" : "java.lang.String"}
+Type        : ${param.parametro.TIPO_DATO === "F" ? "Date" : param.parametro.TIPO_DATO === "C" ? "Query" : param.parametro.TIPO_DATO === "L" ? "List" : "Text"}
+Data        : ${param.parametro.DATOS}
+`
+  ).join("\n");
+
+  return `======= CONFIGURACIÓN DEL REPORTE ===========
+
+..:: información general ::..
+Nombre               : ${nombreReport}
+Descripción          : ${descriptionReport}
+Report File          : ${nombreReport}.${executableRow?.TIPO === "JR" ? "jrxml" : "sql"}
+Virtualizado         : No
+Tipos de Exportación : ${executableRow?.TIPO === "JR" ? "PDF, XLS" : "XLS"}
+
+..:: Listado de Parámetros ::..
+
+${paramsList}
+
+..:: CONFIGURACIÓN DE PARÁMETROS ::..
+
+${paramsConfig}
+..:: OBJETOS ::..
+
+BASE DE DATOS:
+
+  <REMPLZAR POR LAS TABLAS Y VISTAS REQUERIDAS PARA EL REPORTE>
+
+..:: SUBREPORTES ::..
+
+..:: GRUPO ::..
+
+- ICEBERG-${executableRow.COMPONENTE}${nombreReport[2] === "s" ? " (Plano)" : ""} ICEBERG ${COMPONENTES[executableRow.COMPONENTE] || "<Componente no encontrado>"}${nombreReport[2] === "s" ? " (Plano)" : ""}`
+}
+
 function buildMenuFileName(menuRow) {
   const base = toSlug(menuRow.target.object || menuRow.target.description || menuRow.source.description || menuRow.target.menu);
-  return `opcion_menu/mst_menu_${base || cleanValue(menuRow.target.menu)}.sql`;
+  return `sql/menu/mst_menu_${base || cleanValue(menuRow.target.menu)}.sql`;
 }
 
 function buildObjectFileName(objectRow, executableRow) {
   const base = toSlug(objectRow?.NOMBRE_COMPLEMENTO || executableRow?.NOMBRE || executableRow?.EJECUTABLE);
-  return `opcion_menu/mst_objeto_${base || cleanValue(executableRow?.EJECUTABLE)}.sql`;
+  return `sql/menu/mst_objeto_${base || cleanValue(executableRow?.EJECUTABLE)}.sql`;
 }
 
 function buildExecutableFileName(executableRow) {
   const base = toSlug(executableRow?.NOMBRE || executableRow?.EJECUTABLE);
-  return `ejecutable/insert_ejecutable_${base || cleanValue(executableRow?.EJECUTABLE)}.sql`;
+  return `sql/ejecutable/insert_ejecutable_${base || cleanValue(executableRow?.EJECUTABLE)}.sql`;
 }
 
 function buildPrivilegesFileName(executableRow) {
   const base = toSlug(executableRow?.NOMBRE || executableRow?.EJECUTABLE);
-  return `opcion_menu/msp_privilegios_rol_${base || cleanValue(executableRow?.EJECUTABLE)}.sql`;
+  return `sql/privilegios/msp_privilegios_rol_${base || cleanValue(executableRow?.EJECUTABLE)}.sql`;
+}
+
+function buildTxtReportFileName(objectRow, executableRow) {
+  const base = toSlug(objectRow?.NOMBRE_COMPLEMENTO || executableRow?.NOMBRE || executableRow?.EJECUTABLE);
+  return `${base || cleanValue(executableRow?.EJECUTABLE)}.txt`;
 }
 
 function buildWorkbookOutputs(context, roleName) {
   const parameterPairs = context.parameterPairs;
+  console.log("Building workbook outputs with context:", context);
   const menuFiles = context.menuChain.map((menuRow) => ({
     path: buildMenuFileName(menuRow),
     content: buildMstMenuSql(menuRow)
@@ -752,9 +817,14 @@ function buildWorkbookOutputs(context, roleName) {
     content: buildMspPrivilegiosRolSql(context.objectRow, context.executableRow, roleName)
   };
 
+  const txtReportFile = {
+    path: buildTxtReportFileName(context.objectRow, context.executableRow),
+    content: buildTxtReportFile(context.objectRow, context.executableRow, parameterPairs)
+  };
+
   return {
     parameterPairs,
-    files: [...flattenFiles(parameterPairs), executableFile, ...menuFiles, objectFile, privilegesFile]
+    files: [...flattenFiles(parameterPairs), executableFile, ...menuFiles, objectFile, privilegesFile, txtReportFile]
   };
 }
 
@@ -896,11 +966,11 @@ function buildGeneratedPairs(filteredPairs) {
       ...pair,
       files: [
         {
-          path: `${folder}/${base}.sql`,
+          path: `sql/parametros/${folder}/${base}.sql`,
           content: buildParametroSql(parametro)
         },
         {
-          path: `${folder}/${base}_ejecutable.sql`,
+          path: `sql/parametros/${folder}/${base}_ejecutable.sql`,
           content: buildEjecutableSql(ep, parametro)
         }
       ]
