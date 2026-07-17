@@ -769,6 +769,46 @@ BASE DE DATOS:
 - ICEBERG-${executableRow.COMPONENTE}${nombreReport[2] === "s" ? " (Plano)" : ""} ICEBERG ${COMPONENTES[executableRow.COMPONENTE] || "<Componente no encontrado>"}${nombreReport[2] === "s" ? " (Plano)" : ""}`
 }
 
+function buildInstallFile(objectRow, executableRow, parameterPairs){
+  const nombreReport = cleanValue(objectRow?.NOMBRE_COMPLEMENTO || executableRow?.NOMBRE);
+  const paramsList = parameterPairs.map((param)=> `@@parametros/${param.parametro.PARAMETRO.toLowerCase()}/${param.parametro.PARAMETRO.toLowerCase()}.sql\n@@parametros/${param.parametro.PARAMETRO.toLowerCase()}/${param.parametro.PARAMETRO.toLowerCase()}_ejecutable.sql\n`).join("\n");
+
+  return`PROMPT Iniciando Instalación de Objetos...
+
+SET ECHO OFF
+SET FEED OFF
+SET VERIFY OFF
+
+SPOOL loginstall.log
+
+@@ejecutable/insert_ejecutable_${nombreReport}.sql
+@@menu/mst_objeto_${nombreReport}.sql
+@@menu/mst_menu_${nombreReport}.sql
+@@privilegios/msp_privilegios_rol_${nombreReport}.sql
+
+${paramsList}
+
+PROMPT Recompilando objetos invalidos...
+@@compilar_invalidos.sql;
+
+SPOOL OFF
+
+PROMPT Instalación de Objetos Finalizada...`
+}
+
+function buildCompileInvalidObjectsFile() {
+  return `PROMPT COMPILANDO ESQUEMA...
+Begin
+  dbms_utility.compile_schema(
+        schema         =>  USER,
+        compile_all    =>  FALSE,
+        reuse_settings =>  TRUE
+   );
+End; 
+/ 
+` 
+}
+
 function buildMenuFileName(menuRow) {
   const base = toSlug(menuRow.target.object || menuRow.target.description || menuRow.source.description || menuRow.target.menu);
   return `sql/menu/mst_menu_${base || cleanValue(menuRow.target.menu)}.sql`;
@@ -821,9 +861,19 @@ function buildWorkbookOutputs(context, roleName) {
     content: buildTxtReportFile(context.objectRow, context.executableRow, parameterPairs)
   };
 
+  const compileInvalidObjectsFile = {
+    path: "sql/compilar_invalidos.sql",
+    content: buildCompileInvalidObjectsFile()
+  };
+
+  const installFile = {
+    path: "sql/Install.sql",
+    content: buildInstallFile(context.objectRow, context.executableRow, parameterPairs)
+  };
+
   return {
     parameterPairs,
-    files: [...flattenFiles(parameterPairs), executableFile, ...menuFiles, objectFile, privilegesFile, txtReportFile]
+    files: [...flattenFiles(parameterPairs), executableFile, ...menuFiles, objectFile, privilegesFile, compileInvalidObjectsFile, installFile, txtReportFile]
   };
 }
 
@@ -845,7 +895,7 @@ function drawRows(items) {
         <td>${cleanValue(ep.ORDENAMIENTO)}</td>
         <td>${cleanValue(ep.REQUERIDO)}</td>
         <td>
-          <button type="button" class="btn btn-mini btn-primary row-download" data-index="${index}">Descargar uno por uno</button>
+          <button type="button" class="btn btn-mini btn-primary row-download" data-index="${index}">Descargar</button>
           <button type="button" class="btn btn-mini row-open" data-index="${index}">Abrir</button>
         </td>
       </tr>`;
