@@ -96,7 +96,8 @@ function detectArticulo(nombre) {
     "SUCURSAL",
     "SECCION",
     "VERSION",
-    "OPCION"
+    "OPCION",
+    "RADICACIÓN"
   ]);
 
   const masculineWords = new Set([
@@ -771,7 +772,7 @@ BASE DE DATOS:
 
 function buildInstallFile(objectRow, executableRow, parameterPairs){
   const nombreReport = cleanValue(objectRow?.NOMBRE_COMPLEMENTO || executableRow?.NOMBRE);
-  const paramsList = parameterPairs.map((param)=> `@@parametros/${param.parametro.PARAMETRO.toLowerCase()}/${param.parametro.PARAMETRO.toLowerCase()}.sql\n@@parametros/${param.parametro.PARAMETRO.toLowerCase()}/${param.parametro.PARAMETRO.toLowerCase()}_ejecutable.sql\n`).join("\n");
+  const paramsList = parameterPairs.map((param, index)=> `@@parametros/${param.parametro.PARAMETRO.toLowerCase()}/${param.parametro.PARAMETRO.toLowerCase()}.sql\n@@parametros/${param.parametro.PARAMETRO.toLowerCase()}/${param.parametro.PARAMETRO.toLowerCase()}_ejecutable.sql${ index < parameterPairs.length - 1 ? '\n' : '' }`).join("\n");
 
   return`PROMPT Iniciando Instalación de Objetos...
 
